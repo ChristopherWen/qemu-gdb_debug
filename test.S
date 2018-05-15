@@ -22,14 +22,4 @@ start2:
 	ands x1, x1, x3
 	beq start2
 	bne start2
-start3:
-	ldr x1,=0x10
-	ldr x0,=0x11
-	subs x1, x1, x0
-	bne start3
-	beq start3
-	subs x3, x0, x1
-#	这个subs命令相当于sub和cmp的结合体，做减法的同时判断x0和x1这两个寄存器里的值的大小
-	bhi start3
-	blt start3
-	bls _start 
+
