@@ -1,0 +1,13 @@
+CC=/home/wsy/trusty_workspace/toolchains/aarch64/bin/aarch64-linux-gnu-gcc
+LD=/home/wsy/trusty_workspace/toolchains/aarch64/bin/aarch64-linux-gnu-ld
+OBJDUMP=/home/wsy/trusty_workspace/toolchains/aarch64/bin/aarch64-linux-gnu-objdump
+OBJCOPY=/home/wsy/trusty_workspace/toolchains/aarch64/bin/aarch64-linux-gnu-objcopy
+
+OBJ := test
+OBJ : $(OBJ).S
+	$(CC) -g -c -o $(OBJ).o $(OBJ).S
+	$(LD) -Ttext 0x40080000 -g $(OBJ).o -o $(OBJ).elf
+	$(OBJCOPY) -O binary $(OBJ).elf $(OBJ).bin
+	$(OBJDUMP) -d $(OBJ).elf > $(OBJ).dump
+clean:
+	rm *.o *.elf *.bin *.dump
