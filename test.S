@@ -1,84 +1,111 @@
+#include <asm.h>
+#include <asm_macros.h>
+
+
 .text
 .global _start
 _start:
-	ldr x1, =0x301
-	ldr x0, =0x10
-	#mov x0, #0
-	#mov x1, #1
-	#mov x2, #2
-	#mov x3, #3
-#	tst x1, #(1 << 4) - 1
-#	tst命令和ands命令操作基本相似，都是进行与操作之后判断结果pstate[N,C,Z,V]，注意一点：两个位数不等的寄存器进行与操作时，位数少的那方不足位全部补成零在进行与操作。
-	ands x1, x1, x0
-	#str x30,[sp, #-4]
-	mov x0, x1
+	#adrp x4, cpu
+	#adr_global x4, cpu
+	#adr x10, cpu
+	
+	#adr x10, stack	
+	#mov sp, x10
+
+	#AAPCS官方调用规则里对sp(stack pointer)赋值的规定是：
+	#At all times the following basic constraints must hold:
+	#1 Stack-limit < SP <= stack-base. The stack pointer must lie within the extent of the stack.
+	#2 A process may only access (for reading or writing) the closed interval of the entire stack delimited by [SP, stack-base – 1].
+	#  Additionally, at any point at which memory is accessed via SP, the hardware requires that 
+	#3 SP mod 16 = 0. The stack must be quad-word aligned.
+	#ldr x10, =0x400aa000
+	#mov sp, x10	
+	adr_global x10, stack
+	mov sp, x10
+test_ldr_adr:	
+	#测试指令ldr <xt>, <label>和指令adr <xt>, <label>的区别，区别在于：
+	#  ldr:Load Register (literal) calculates an address from the PC value and an immediate offset, loads a word from memory,and writes it to a 		#      register.(计算出label地址，并从该地址指向的内存里取出一个字到目标寄存器中) 
+	#  adr:Form PC-relative address adds an immediate value to the PC value to form a PC-relative address, and writes the result to the 		#      destination register.(直接计算label地址，并存到目标寄存器中)
+	adr x0, ldrt
+	ldr x1, ldrt
+	adr x2, ldrt2
+	ldr x3, ldrt2
+	adr x4, stack
+	ldr x5, stack
+	adr x6, cpu_data
+	ldr x7, cpu_data
+	
+
+	#将lr保存到栈里面
+save_lr:
+	sub sp, sp, #0x40
+	#这个地方要注意一点：把x29(fp--aks:frame pointer)和x30(lr--aks:linker register)
+	#存到栈里面的时候分别都需要8字节的空间，所以这里用到了"sp+0x10"操作。
+	stp x29, x30, [sp, #0x10]
+	mov x29, sp
+	#sub sp, sp, #0x30
+	
+	#如果参数传递超过8个的话，就要将参数压到栈里面，并且是以sp向上增长的方向压栈。第九个
+	#参数是从[sp]开始，往后的可以逐次存到[sp+8]、[sp+0x10]......栈空间里。
+	mov x0, #0x1
+	mov x1, #0x1
+	mov x2, #0x0
+	mov x3, #0x0
+	mov x4, #0x0
+	mov x5, #0x0
+	ldr x6, =0x0
+	ldr x7, =0x0
+	ldr x9, =0x8
+	str x9, [sp]
+	ldr x9, =0x3
+	str x9, [sp, #8]
 	.extern main
 	bl main
-	#ldr x30,[sp],#4
-	beq test
-	bne test
-start2:
-	ldr x1,=0x301
-	ands x1, x1, x3
-	beq test2
-	bne test2
-start3:
-	ldr x1,=0x10
-	ldr x0,=0x11
-	subs x1, x1, x0
-	bne .break
-	beq .break
-	subs x3, x0, x1
-#	这个subs命令相当于sub和cmp的结合体，做减法的同时判断x0和x1这两个寄存器里的值的大小
-	bhi .break
-	blt .break
-	bls .Lbre
-test:
-	b start2
-test2:
-	b start3
 
-break_test:	
-	MOV X1,#3
-	BL .Lbre
-
-temp .req x17
-
-.Lbre:
-	str x1, [x1]
-	str x0, [x3]
-	ldr x9, [x1]
-	ldr x16, [x1, #8]
-	ldp x11,x12,[x1]
-	ldr x14,=0x0
-	add x11,x11,x14
-	add x12,x11,x14
-        ADD X1,X1,#6
-        LDR X3,=0x010200040
-	ubfx x4, x3, #20, #4
-#	这行命令里ubfx 的用处是从x3寄存器的第20位开始截4位出来存到x4寄存器中
-#	add x4, x3, #:lo12:x3
-        MOV X4,#2
-.break:
-        STR X4,[X3]
-        LDR X5,[X3]
-        mov X15,X30
-	mrs temp, sctlr_el1
-	bic temp, temp, #(1<<4);
-	bic temp, temp, x0, lsl #5
-	ldr x16, =0b0
-	orr x16, x16, #(1<<1)
-	BL .Lexit
-	bl .iLbreak_test
-        mov x30,x15
-        BR x30
-
-.Lexit:
-	LDR x1,=0x0
+	#从栈中取出之前保存的lr
+restore_lr:
+	ldp x29, x30, [sp, #0x10]
+	add sp, sp, #0x40
+ 
+break:
+	#mov pc, x30	
 	ret x30
+	
+	#mov sp, x29
+	#ldp x29, x30, [sp], #40
 
-.iLbreak_test:
-	ADD X0,X0,X1
-	MOV X0,#0x18
-	LDR X1,=0x20026
-	BR x30
+	#add sp, sp, #10
+	#add sp, sp, #0x4
+	#add sp, sp, #0x4
+	#add sp, sp, #0x4
+	#add sp, sp, #0x4
+	
+#break:
+	add x24, x24, #0x1
+	#mov sp, x29
+	#ldp x29, x30, [sp], #40
+	#add sp, sp, #10
+	
+	#可能出bug的地方
+	#ldr x7, [sp]
+	#mov x8, sp
+	
+	#ldr x30,[sp],#4
+	#subs x1, x1, x0	
+#start2:
+	#ldr x1,=0x301
+
+.data
+cpu_data:
+	.word 0x1
+	.align 8
+cpu:
+	.word 0x232
+.align 16
+stack:
+	.quad 1
+	.quad 6
+ldrt:
+	.align 8
+ldrt2:
+.bss
